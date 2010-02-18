@@ -36,15 +36,26 @@
  */
 
 #include "MIDI.h"
+#include "avr-midi/midi.h"
 
 #define LED_1 PORTC2
 #define LED_2 PORTC4
+
+#define SYSEX_STARTS_CONTS 0x40
+#define SYSEX_ENDS_IN_2 0x60
+#define SYSEX_ENDS_IN_3 0x70
+
+#define SYS_COMMON_1 0x50
+#define SYS_COMMON_2 0x20
+#define SYS_COMMON_3 0x30
+
+#define MIDI_REALTIME 0xF0
 
 /** LUFA MIDI Class driver interface configuration and state information. This structure is
  *  passed to all MIDI Class driver functions, so that multiple instances of the same class
  *  within a device can be differentiated from one another.
  */
-USB_ClassInfo_MIDI_Device_t Keyboard_MIDI_Interface =
+USB_ClassInfo_MIDI_Device_t USB_MIDI_Interface =
 	{
 		.Config =
 			{
@@ -70,14 +81,45 @@ int main(void)
 	for (;;)
 	{
 		MIDI_EventPacket_t ReceivedMIDIEvent;
-		if (MIDI_Device_ReceiveEventPacket(&Keyboard_MIDI_Interface, &ReceivedMIDIEvent)) {
-			//just send it back for now
-			MIDI_Device_SendEventPacket(&Keyboard_MIDI_Interface, &ReceivedMIDIEvent);
+		if (MIDI_Device_ReceiveEventPacket(&USB_MIDI_Interface, &ReceivedMIDIEvent)) {
+
+			//parse incoming data and echo to the hardware midi [for now]
+			switch(ReceivedMIDIEvent.Command << 4){
+				//length 3 messages
+				case MIDI_CC:
+				case MIDI_NOTEON:
+				case MIDI_NOTEOFF:
+				case MIDI_PITCHBEND:
+				case MIDI_AFTERTOUCH:
+				case SYSEX_STARTS_CONTS:
+				case SYSEX_ENDS_IN_3:
+				case SYS_COMMON_3:
+					midiSendByte(ReceivedMIDIEvent.Data1);
+					midiSendByte(ReceivedMIDIEvent.Data2);
+					midiSendByte(ReceivedMIDIEvent.Data3);
+					break;
+					//length 2 messages
+				case MIDI_CHANPRESSURE:
+				case MIDI_PROGCHANGE:
+				case SYSEX_ENDS_IN_2:
+				case SYS_COMMON_2:
+					midiSendByte(ReceivedMIDIEvent.Data1);
+					midiSendByte(ReceivedMIDIEvent.Data2);
+					break;
+					//length 1 messages
+				case MIDI_REALTIME:
+				case SYS_COMMON_1:
+					midiSendByte(ReceivedMIDIEvent.Data1);
+					break;
+				default:
+					break;
+			}
+
 			//indicate that we got a packet
 			PORTC ^= _BV(LED_2);
 		}
 	
-		MIDI_Device_USBTask(&Keyboard_MIDI_Interface);
+		MIDI_Device_USBTask(&USB_MIDI_Interface);
 		USB_USBTask();
 	}
 }
@@ -95,6 +137,9 @@ void SetupHardware(void)
 
 	/* Disable clock division */
 	clock_prescale_set(clock_div_1);
+
+	//set up hardware midi
+	midiInit(MIDI_CLOCK_16MHZ_OSC, true, false);
 	
 	/* Hardware Initialization */
 	USB_Init();
@@ -114,7 +159,7 @@ void EVENT_USB_Device_Disconnect(void)
 /** Event handler for the library USB Configuration Changed event. */
 void EVENT_USB_Device_ConfigurationChanged(void)
 {
-	if (!(MIDI_Device_ConfigureEndpoints(&Keyboard_MIDI_Interface))){
+	if (!(MIDI_Device_ConfigureEndpoints(&USB_MIDI_Interface))){
 		PORTC |= (_BV(PINC2) | _BV(PINC4));
 	}
 }
@@ -122,10 +167,10 @@ void EVENT_USB_Device_ConfigurationChanged(void)
 /** Event handler for the library USB Unhandled Control Request event. */
 void EVENT_USB_Device_UnhandledControlRequest(void)
 {
-	MIDI_Device_ProcessControlRequest(&Keyboard_MIDI_Interface);
+	MIDI_Device_ProcessControlRequest(&USB_MIDI_Interface);
 }
 
-uint8_t SendMIDINote(
+uint8_t SendUSBMIDINote(
 		USB_ClassInfo_MIDI_Device_t * midi_device,
 		const uint8_t pitch, 
 		const bool on, 
@@ -150,7 +195,7 @@ uint8_t SendMIDINote(
 	return MIDI_Device_SendEventPacket(midi_device, &packet);
 }
 
-uint8_t SendMIDICC(
+uint8_t SendUSBMIDICC(
 		USB_ClassInfo_MIDI_Device_t * midi_device,
 		const uint8_t num, 
 		const uint8_t val, 

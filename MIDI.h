@@ -57,7 +57,7 @@
 		void EVENT_USB_Device_ConfigurationChanged(void);
 		void EVENT_USB_Device_UnhandledControlRequest(void);
 
-		uint8_t SendMIDINote(
+		uint8_t SendUSBMIDINote(
 				USB_ClassInfo_MIDI_Device_t * midi_device,
 				const uint8_t pitch, 
 				const bool on, 
@@ -65,7 +65,7 @@
 				const uint8_t velocity, 
 				const uint8_t cable_id);
 
-		uint8_t SendMIDICC(
+		uint8_t SendUSBMIDICC(
 				USB_ClassInfo_MIDI_Device_t * midi_device,
 				const uint8_t num, 
 				const uint8_t val, 

@@ -1,0 +1,6 @@
+requires LUFA 091223
+http://www.fourwalledcubicle.com/LUFA.php
+
+Code is for the Dorkbot PDX workshop #2 [for now]
+
+Edit the makefile to work on your system [edit the LUFA_PATH]

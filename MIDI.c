@@ -39,7 +39,6 @@
 
 #define LED_1 PORTC2
 #define LED_2 PORTC4
-bool on;
 
 /** LUFA MIDI Class driver interface configuration and state information. This structure is
  *  passed to all MIDI Class driver functions, so that multiple instances of the same class
@@ -71,16 +70,11 @@ int main(void)
 	for (;;)
 	{
 		MIDI_EventPacket_t ReceivedMIDIEvent;
-		if (MIDI_Device_ReceiveEventPacket(&Keyboard_MIDI_Interface, &ReceivedMIDIEvent))
-		{
+		if (MIDI_Device_ReceiveEventPacket(&Keyboard_MIDI_Interface, &ReceivedMIDIEvent)) {
+			//just send it back for now
 			MIDI_Device_SendEventPacket(&Keyboard_MIDI_Interface, &ReceivedMIDIEvent);
+			//indicate that we got a packet
 			PORTC ^= _BV(LED_2);
-			/*
-			if ((ReceivedMIDIEvent.Command == (MIDI_COMMAND_NOTE_ON >> 4)) && (ReceivedMIDIEvent.Data3 > 0))
-			  LEDs_SetAllLEDs(ReceivedMIDIEvent.Data2 > 64 ? LEDS_LED1 : LEDS_LED2);
-			else
-			  LEDs_SetAllLEDs(LEDS_NO_LEDS);
-			  */
 		}
 	
 		MIDI_Device_USBTask(&Keyboard_MIDI_Interface);
@@ -91,8 +85,10 @@ int main(void)
 /** Configures the board hardware and chip peripherals for the demo's functionality. */
 void SetupHardware(void)
 {
+	//set up LEDs
 	DDRC |= (_BV(PINC2) | _BV(PINC4));
 	PORTC |= (_BV(PINC2) | _BV(PINC4));
+
 	/* Disable watchdog if enabled by bootloader/fuses */
 	MCUSR &= ~(1 << WDRF);
 	wdt_disable();
@@ -129,48 +125,46 @@ void EVENT_USB_Device_UnhandledControlRequest(void)
 	MIDI_Device_ProcessControlRequest(&Keyboard_MIDI_Interface);
 }
 
-///** Sends a MIDI note change event (note on or off) to the MIDI output jack, on the given virtual cable ID and channel.
- //*
- //*  \param Pitch    Pitch of the note to turn on or off
- //*  \param OnOff    Set to true if the note is on (being held down), or false otherwise
- //*  \param CableID  ID of the virtual cable to send the note change to
- //*  \param Channel  MIDI channel number to send the note change event to
- //*/
-//void SendMIDINoteChange(const uint8_t Pitch, const bool OnOff, const uint8_t CableID, const uint8_t Channel)
-//{
-	///* Wait until endpoint ready for more data */
-	//while (!(Endpoint_IsReadWriteAllowed()));
-//
-	///* Check if the message should be a Note On or Note Off command */
-	//uint8_t Command = ((OnOff)? MIDI_COMMAND_NOTE_ON : MIDI_COMMAND_NOTE_OFF);
-//
-	///* Write the Packet Header to the endpoint */
-	//Endpoint_Write_Byte((CableID << 4) | (Command >> 4));
-//
-	///* Write the Note On/Off command with the specified channel, pitch and velocity */
-	//Endpoint_Write_Byte(Command | Channel);
-	//Endpoint_Write_Byte(Pitch);
-	//Endpoint_Write_Byte(MIDI_STANDARD_VELOCITY);
-//
-	///* Send the data in the endpoint to the host */
-	//Endpoint_ClearIN();
-//}
-//
-//void SendMIDICC(const uint8_t num, const uint8_t val, const uint8_t CableID, const uint8_t Channel)
-//{
-	///* Wait until endpoint ready for more data */
-	//while (!(Endpoint_IsReadWriteAllowed()));
-//
-	///* Check if the message should be a Note On or Note Off command */
-	//uint8_t Command = MIDI_COMMAND_CC;
-//
-	///* Write the Packet Header to the endpoint */
-	//Endpoint_Write_Byte((CableID << 4) | (Command >> 4));
-//
-	//Endpoint_Write_Byte(Command | Channel);
-	//Endpoint_Write_Byte(num);
-	//Endpoint_Write_Byte(val);
-//
-	///* Send the data in the endpoint to the host */
-	//Endpoint_ClearIN();
-//}
+uint8_t SendMIDINote(
+		USB_ClassInfo_MIDI_Device_t * midi_device,
+		const uint8_t pitch, 
+		const bool on, 
+		const uint8_t channel, 
+		const uint8_t velocity, 
+		const uint8_t cable_id)
+{
+	MIDI_EventPacket_t packet;
+
+	uint8_t command = MIDI_COMMAND_NOTE_OFF;
+	if(on)
+		command = MIDI_COMMAND_NOTE_ON;
+
+	packet.Command = (command >> 4);
+	packet.CableNumber = cable_id;
+
+	/* Write the Note On/Off command with the specified channel, pitch and velocity */
+	packet.Data1 = command | channel;
+	packet.Data2 = pitch;
+	packet.Data3 = velocity;
+
+	return MIDI_Device_SendEventPacket(midi_device, &packet);
+}
+
+uint8_t SendMIDICC(
+		USB_ClassInfo_MIDI_Device_t * midi_device,
+		const uint8_t num, 
+		const uint8_t val, 
+		const uint8_t channel,
+		const uint8_t cable_id) {
+	MIDI_EventPacket_t packet;
+
+	uint8_t command = MIDI_COMMAND_CC;
+
+	packet.Command = (command >> 4);
+	packet.CableNumber = cable_id;
+	packet.Data1 = command | channel;
+	packet.Data2 = num;
+	packet.Data3 = val;
+
+	return MIDI_Device_SendEventPacket(midi_device, &packet);
+}

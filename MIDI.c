@@ -51,6 +51,12 @@
 
 #define MIDI_REALTIME 0xF0
 
+#define DDR_SPI DDRB
+#define DD_SCK PINB1
+#define DD_MOSI PINB2
+#define DD_MISO PINB3
+#define TINY_SS PINB4
+
 /** LUFA MIDI Class driver interface configuration and state information. This structure is
  *  passed to all MIDI Class driver functions, so that multiple instances of the same class
  *  within a device can be differentiated from one another.
@@ -77,6 +83,24 @@ USB_ClassInfo_MIDI_Device_t USB_MIDI_Interface =
 int main(void)
 {
 	SetupHardware();
+
+
+	//THIS DOESNT WORK YET
+	//select the tiny select
+	PORTB &= ~_BV(TINY_SS);
+
+	while(1){
+
+		//send bogus data
+		SPDR = 0;
+		/* Wait for reception complete */
+		while(!(SPSR & (1<<SPIF)));
+		uint8_t val =  SPDR;
+
+		SendUSBMIDICC( &USB_MIDI_Interface, 0, val, 0, 0);
+		MIDI_Device_USBTask(&USB_MIDI_Interface);
+		USB_USBTask();
+	}
 
 	for (;;)
 	{
@@ -140,7 +164,15 @@ void SetupHardware(void)
 
 	//set up hardware midi
 	midiInit(MIDI_CLOCK_16MHZ_OSC, true, false);
-	
+
+	//spi
+	/* Set MOSI and SCK output and chip select, all others input */
+	DDR_SPI = (1<<DD_MOSI) | (1<<DD_SCK) | _BV(TINY_SS);
+
+	/* Enable SPI, Master, set clock rate fck/16 */
+	SPCR = (1<<SPE) | (1<<MSTR) | (1<<SPR0);
+
+
 	/* Hardware Initialization */
 	USB_Init();
 }

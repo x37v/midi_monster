@@ -1,21 +1,21 @@
 /*
              LUFA Library
-     Copyright (C) Dean Camera, 2009.
+     Copyright (C) Dean Camera, 2010.
               
   dean [at] fourwalledcubicle [dot] com
       www.fourwalledcubicle.com
 */
 
 /*
-  Copyright 2009  Dean Camera (dean [at] fourwalledcubicle [dot] com)
+  Copyright 2010  Dean Camera (dean [at] fourwalledcubicle [dot] com)
 
-  Permission to use, copy, modify, and distribute this software
-  and its documentation for any purpose and without fee is hereby
-  granted, provided that the above copyright notice appear in all
-  copies and that both that the copyright notice and this
-  permission notice and warranty disclaimer appear in supporting
-  documentation, and that the name of the author not be used in
-  advertising or publicity pertaining to distribution of the
+  Permission to use, copy, modify, distribute, and sell this 
+  software and its documentation for any purpose is hereby granted
+  without fee, provided that the above copyright notice appear in 
+  all copies and that both that the copyright notice and this
+  permission notice and warranty disclaimer appear in supporting 
+  documentation, and that the name of the author not be used in 
+  advertising or publicity pertaining to distribution of the 
   software without specific, written prior permission.
 
   The author disclaim all warranties with regard to this
@@ -43,44 +43,44 @@ uint8_t EEMEM EEPROM_Rest_Polarity = 0x00;
 static ParameterItem_t ParameterTable[] = 
 	{
 		{ .ParamID          = PARAM_BUILD_NUMBER_LOW,
-		  .ParamValue       = (LUFA_VERSION_INTEGER >> 8),
-		  .ParamPrivileges = PARAM_PRIV_READ                    },
+		  .ParamPrivileges  = PARAM_PRIV_READ,
+		  .ParamValue       = (LUFA_VERSION_INTEGER >> 8)        },
 
 		{ .ParamID          = PARAM_BUILD_NUMBER_HIGH,
-		  .ParamValue       = (LUFA_VERSION_INTEGER & 0xFF),
-		  .ParamPrivileges = PARAM_PRIV_READ                    },
+		  .ParamPrivileges  = PARAM_PRIV_READ,
+		  .ParamValue       = (LUFA_VERSION_INTEGER & 0xFF),     },
 
 		{ .ParamID          = PARAM_HW_VER,
-		  .ParamValue       = 0x00,
-		  .ParamPrivileges = PARAM_PRIV_READ                    },
+		  .ParamPrivileges  = PARAM_PRIV_READ,
+		  .ParamValue       = 0x00                               },
 
 		{ .ParamID          = PARAM_SW_MAJOR,
-		  .ParamValue       = 0x01,
-		  .ParamPrivileges = PARAM_PRIV_READ                    },
+		  .ParamPrivileges  = PARAM_PRIV_READ,
+		  .ParamValue       = 0x01                               },
 
 		{ .ParamID          = PARAM_SW_MINOR,
-		  .ParamValue       = 0x0C,
-		  .ParamPrivileges = PARAM_PRIV_READ                    },
+		  .ParamPrivileges  = PARAM_PRIV_READ,
+		  .ParamValue       = 0x0D                               },
 
 		{ .ParamID          = PARAM_VTARGET,
-		  .ParamValue       = 0x32,
-		  .ParamPrivileges = PARAM_PRIV_READ                    },
+		  .ParamPrivileges  = PARAM_PRIV_READ,
+		  .ParamValue       = 0x32                               },
 
 		{ .ParamID          = PARAM_SCK_DURATION,
-		  .ParamValue       = (TOTAL_ISP_PROGRAMMING_SPEEDS - 1),
-		  .ParamPrivileges = PARAM_PRIV_READ | PARAM_PRIV_WRITE },
+		  .ParamPrivileges  = PARAM_PRIV_READ | PARAM_PRIV_WRITE,
+		  .ParamValue       = (TOTAL_ISP_PROGRAMMING_SPEEDS - 1) },
 
 		{ .ParamID          = PARAM_RESET_POLARITY,
-		  .ParamValue       = 0x00,
-		  .ParamPrivileges = PARAM_PRIV_WRITE                   },
+		  .ParamPrivileges  = PARAM_PRIV_WRITE,
+		  .ParamValue       = 0x00                               },
 
 		{ .ParamID          = PARAM_STATUS_TGT_CONN,
-		  .ParamValue       = 0x00,
-		  .ParamPrivileges = PARAM_PRIV_READ                    },
+		  .ParamPrivileges  = PARAM_PRIV_READ,
+		  .ParamValue       = 0x00                               },
 
 		{ .ParamID          = PARAM_DISCHARGEDELAY,
-		  .ParamValue       = 0x00,
-		  .ParamPrivileges = PARAM_PRIV_WRITE                   },
+		  .ParamPrivileges  = PARAM_PRIV_WRITE,
+		  .ParamValue       = 0x00                               },
 	};
 
 
@@ -97,7 +97,7 @@ void V2Params_LoadNonVolatileParamValues(void)
  */
 void V2Params_UpdateParamValues(void)
 {
-	#if defined(ADC)
+	#if (defined(ADC) && !defined(NO_VTARGET_DETECT))
 	/* Update VTARGET parameter with the latest ADC conversion of VTARGET on supported AVR models */
 	V2Params_GetParamFromTable(PARAM_VTARGET)->ParamValue = ((5 * 10 * ADC_GetResult()) / 1024);
 	#endif
@@ -167,12 +167,16 @@ void V2Params_SetParameterValue(const uint8_t ParamID, const uint8_t Value)
  */
 static ParameterItem_t* V2Params_GetParamFromTable(const uint8_t ParamID)
 {
+	ParameterItem_t* CurrTableItem = ParameterTable;
+
 	/* Find the parameter in the parameter table if present */
-	for (uint8_t TableIndex = 0; TableIndex < (sizeof(ParameterTable) / sizeof(ParameterTable[0])); TableIndex++)
+	for (uint8_t TableIndex = 0; TableIndex < TABLE_PARAM_COUNT; TableIndex++)
 	{
-		if (ParamID == ParameterTable[TableIndex].ParamID)
-		  return &ParameterTable[TableIndex];
+		if (ParamID == CurrTableItem->ParamID)
+		  return CurrTableItem;
+		
+		CurrTableItem++;
 	}
-	
+
 	return NULL;
 }

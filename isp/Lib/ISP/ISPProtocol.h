@@ -30,22 +30,20 @@
 
 /** \file
  *
- *  Header file for V2Protocol.c.
+ *  Header file for ISPProtocol.c.
  */
 
-#ifndef _V2_PROTOCOL_
-#define _V2_PROTOCOL_
+#ifndef _ISP_PROTOCOL_
+#define _ISP_PROTOCOL_
 
 	/* Includes: */
-		#include <LUFA/Drivers/USB/USB.h>
-		#include <LUFA/Drivers/Peripheral/SPI.h>
+		#include <avr/io.h>
+		#include <util/delay.h>
 		
-		#include "../Descriptors.h"
-		#include "V2ProtocolConstants.h"
-		#include "V2ProtocolParams.h"
-		#include "ISP/ISPProtocol.h"
-		#include "XPROG/XPROGProtocol.h"
+		#include <LUFA/Drivers/USB/USB.h>
 
+		#include "../V2Protocol.h"
+		
 	/* Preprocessor Checks: */
 		#if ((BOARD == BOARD_XPLAIN) || (BOARD == BOARD_XPLAIN_REV1))
 			#undef ENABLE_ISP_PROTOCOL
@@ -56,38 +54,37 @@
 		#endif
 
 	/* Macros: */
-		#if !defined(__DOXYGEN__)
-			#define _GETADCMUXMASK2(x, y)       x ## y
-			#define _GETADCMUXMASK(x, y)        _GETADCMUXMASK2(x, y)
-		#endif
+		/** Mask for the reading or writing of the high byte in a FLASH word when issuing a low-level programming command */
+		#define READ_WRITE_HIGH_BYTE_MASK       (1 << 3)
 
-		/** Programmer ID string, returned to the host during the CMD_SIGN_ON command processing */
-		#define PROGRAMMER_ID              "AVRISP_MK2"
-		
-		/** Timeout period for each issued command from the host before it is aborted */
-		#define COMMAND_TIMEOUT_MS         200
-		
-		/** Command timeout counter register, GPIOR for speed */
-		#define TimeoutMSRemaining         GPIOR0
-		
-		/** MUX mask for the VTARGET ADC channel number */
-		#define VTARGET_ADC_CHANNEL_MASK   _GETADCMUXMASK(ADC_CHANNEL, VTARGET_ADC_CHANNEL)
+		#define PROG_MODE_PAGED_WRITES_MASK     (1 << 0)
+		#define PROG_MODE_WORD_TIMEDELAY_MASK   (1 << 1)
+		#define PROG_MODE_WORD_VALUE_MASK       (1 << 2)
+		#define PROG_MODE_WORD_READYBUSY_MASK   (1 << 3)
+		#define PROG_MODE_PAGED_TIMEDELAY_MASK  (1 << 4)
+		#define PROG_MODE_PAGED_VALUE_MASK      (1 << 5)
+		#define PROG_MODE_PAGED_READYBUSY_MASK  (1 << 6)
+		#define PROG_MODE_COMMIT_PAGE_MASK      (1 << 7)
 
-	/* External Variables: */
-		extern uint32_t CurrentAddress;
-		extern bool     MustSetAddress;
+	/* Inline Functions: */
+		/** Blocking delay for a given number of milliseconds.
+		 *
+		 *  \param[in] DelayMS  Number of milliseconds to delay for
+		 */
+		static inline void ISPProtocol_DelayMS(uint8_t DelayMS)
+		{
+			while (DelayMS--)
+			  _delay_ms(1);
+		}
 
 	/* Function Prototypes: */
-		void V2Protocol_Init(void);
-		void V2Protocol_ProcessCommand(void);
-		
-		#if defined(INCLUDE_FROM_V2PROTOCOL_C)
-			static void V2Protocol_UnknownCommand(const uint8_t V2Command);
-			static void V2Protocol_SignOn(void);
-			static void V2Protocol_GetSetParam(const uint8_t V2Command);
-			static void V2Protocol_ResetProtection(void);
-			static void V2Protocol_LoadAddress(void);
-		#endif
+		void ISPProtocol_EnterISPMode(void);
+		void ISPProtocol_LeaveISPMode(void);
+		void ISPProtocol_ProgramMemory(const uint8_t V2Command);
+		void ISPProtocol_ReadMemory(const uint8_t V2Command);
+		void ISPProtocol_ChipErase(void);
+		void ISPProtocol_ReadFuseLockSigOSCCAL(const uint8_t V2Command);
+		void ISPProtocol_WriteFuseLock(const uint8_t V2Command);
+		void ISPProtocol_SPIMulti(void);
 
 #endif
-

@@ -1,21 +1,21 @@
 /*
              LUFA Library
-     Copyright (C) Dean Camera, 2009.
+     Copyright (C) Dean Camera, 2010.
               
   dean [at] fourwalledcubicle [dot] com
       www.fourwalledcubicle.com
 */
 
 /*
-  Copyright 2009  Dean Camera (dean [at] fourwalledcubicle [dot] com)
+  Copyright 2010  Dean Camera (dean [at] fourwalledcubicle [dot] com)
 
-  Permission to use, copy, modify, and distribute this software
-  and its documentation for any purpose and without fee is hereby
-  granted, provided that the above copyright notice appear in all
-  copies and that both that the copyright notice and this
-  permission notice and warranty disclaimer appear in supporting
-  documentation, and that the name of the author not be used in
-  advertising or publicity pertaining to distribution of the
+  Permission to use, copy, modify, distribute, and sell this 
+  software and its documentation for any purpose is hereby granted
+  without fee, provided that the above copyright notice appear in 
+  all copies and that both that the copyright notice and this
+  permission notice and warranty disclaimer appear in supporting 
+  documentation, and that the name of the author not be used in 
+  advertising or publicity pertaining to distribution of the 
   software without specific, written prior permission.
 
   The author disclaim all warranties with regard to this
@@ -81,7 +81,7 @@ USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
 			.ConfigurationNumber    = 1,
 			.ConfigurationStrIndex  = NO_DESCRIPTOR,
 				
-			.ConfigAttributes       = USB_CONFIG_ATTR_SELFPOWERED,
+			.ConfigAttributes       = (USB_CONFIG_ATTR_BUSPOWERED | USB_CONFIG_ATTR_SELFPOWERED),
 			
 			.MaxPowerConsumption    = USB_CONFIG_POWER_MA(100)
 		},
@@ -151,11 +151,14 @@ USB_Descriptor_String_t PROGMEM ManufacturerString =
  */
 USB_Descriptor_String_t PROGMEM ProductString =
 {
-	.Header                 = {.Size = USB_STRING_LEN(33), .Type = DTYPE_String},
+	.Header                 = {.Size = USB_STRING_LEN(22), .Type = DTYPE_String},
 		
-	.UnicodeString          = L"LUFA AVRISP MkII Clone Programmer"
+	.UnicodeString          = L"LUFA AVRISP MkII Clone"
 };
 
+/** Serial number string. This is a Unicode string containing the device's unique serial number, expressed as a
+ *  series of uppercase hexadecimal digits.
+ */
 USB_Descriptor_String_t PROGMEM SerialString =
 {
 	.Header                 = {.Size = USB_STRING_LEN(13), .Type = DTYPE_String},

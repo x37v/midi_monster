@@ -118,7 +118,7 @@ OBJDIR = .
 
 
 # Path to the LUFA library
-LUFA_PATH = ../lufa_091223/
+LUFA_PATH = ../lufa_100219/
 
 
 # LUFA library compile-time options

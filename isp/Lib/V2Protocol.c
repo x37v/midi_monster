@@ -1,21 +1,21 @@
 /*
              LUFA Library
-     Copyright (C) Dean Camera, 2009.
+     Copyright (C) Dean Camera, 2010.
               
   dean [at] fourwalledcubicle [dot] com
       www.fourwalledcubicle.com
 */
 
 /*
-  Copyright 2009  Dean Camera (dean [at] fourwalledcubicle [dot] com)
+  Copyright 2010  Dean Camera (dean [at] fourwalledcubicle [dot] com)
 
-  Permission to use, copy, modify, and distribute this software
-  and its documentation for any purpose and without fee is hereby
-  granted, provided that the above copyright notice appear in all
-  copies and that both that the copyright notice and this
-  permission notice and warranty disclaimer appear in supporting
-  documentation, and that the name of the author not be used in
-  advertising or publicity pertaining to distribution of the
+  Permission to use, copy, modify, distribute, and sell this 
+  software and its documentation for any purpose is hereby granted
+  without fee, provided that the above copyright notice appear in 
+  all copies and that both that the copyright notice and this
+  permission notice and warranty disclaimer appear in supporting 
+  documentation, and that the name of the author not be used in 
+  advertising or publicity pertaining to distribution of the 
   software without specific, written prior permission.
 
   The author disclaim all warranties with regard to this
@@ -43,6 +43,31 @@ uint32_t CurrentAddress;
 bool MustSetAddress;
 
 
+/** ISR for the management of the command execution timeout counter */
+ISR(TIMER0_COMPA_vect, ISR_BLOCK)
+{
+	if (TimeoutMSRemaining)
+	  TimeoutMSRemaining--;
+}
+
+/** Initializes the hardware and software associated with the V2 protocol command handling. */
+void V2Protocol_Init(void)
+{
+	#if defined(ADC)
+	/* Initialize the ADC converter for VTARGET level detection on supported AVR models */
+	ADC_Init(ADC_FREE_RUNNING | ADC_PRESCALE_128);
+	ADC_SetupChannel(VTARGET_ADC_CHANNEL);
+	ADC_StartReading(VTARGET_ADC_CHANNEL_MASK | ADC_RIGHT_ADJUSTED | ADC_REFERENCE_AVCC);
+	#endif
+	
+	/* Millisecond timer initialization for managing the command timeout counter */
+	OCR0A  = ((F_CPU / 64) / 1000);
+	TCCR0A = (1 << WGM01);
+	TCCR0B = ((1 << CS01) | (1 << CS00));
+	
+	V2Params_LoadNonVolatileParamValues();
+}
+
 /** Master V2 Protocol packet handler, for received V2 Protocol packets from a connected host.
  *  This routine decodes the issued command and passes off the handling of the command to the
  *  appropriate function.
@@ -50,7 +75,11 @@ bool MustSetAddress;
 void V2Protocol_ProcessCommand(void)
 {
 	uint8_t V2Command = Endpoint_Read_Byte();
-		  
+	
+	/* Set total command processing timeout value, enable timeout management interrupt */
+	TimeoutMSRemaining = COMMAND_TIMEOUT_MS;
+	TIMSK0 |= (1 << OCIE0A);
+
 	switch (V2Command)
 	{
 		case CMD_SIGN_ON:
@@ -98,19 +127,22 @@ void V2Protocol_ProcessCommand(void)
 			ISPProtocol_SPIMulti();
 			break;
 #endif
-#if defined(ENABLE_PDI_PROTOCOL)
+#if defined(ENABLE_XPROG_PROTOCOL)
 		case CMD_XPROG_SETMODE:
-			PDIProtocol_XPROG_SetMode();
+			XPROGProtocol_SetMode();
 			break;
 		case CMD_XPROG:
-			PDIProtocol_XPROG_Command();
+			XPROGProtocol_Command();
 			break;
 #endif
 		default:
 			V2Protocol_UnknownCommand(V2Command);
 			break;
 	}
-	
+		
+	/* Disable timeout management interrupt once processing has completed */
+	TIMSK0 &= ~(1 << OCIE0A);
+
 	Endpoint_WaitUntilReady();
 	Endpoint_SetEndpointDirection(ENDPOINT_DIR_OUT);
 }
@@ -146,12 +178,12 @@ static void V2Protocol_SignOn(void)
 	Endpoint_Write_Byte(CMD_SIGN_ON);
 	Endpoint_Write_Byte(STATUS_CMD_OK);
 	Endpoint_Write_Byte(sizeof(PROGRAMMER_ID) - 1);
-	Endpoint_Write_Stream_LE(PROGRAMMER_ID, (sizeof(PROGRAMMER_ID) - 1));
+	Endpoint_Write_Stream_LE(PROGRAMMER_ID, (sizeof(PROGRAMMER_ID) - 1), NO_STREAM_CALLBACK);
 	Endpoint_ClearIN();
 }
 
-/** Handler for the CMD_RESET_PROTECTION command, currently implemented as a dummy ACK function
- *  as no ISP short-circuit protection is currently implemented.
+/** Handler for the CMD_RESET_PROTECTION command, implemented as a dummy ACK function as
+ *  no target short-circuit protection is currently implemented.
  */
 static void V2Protocol_ResetProtection(void)
 {
@@ -208,7 +240,7 @@ static void V2Protocol_GetSetParam(const uint8_t V2Command)
  */
 static void V2Protocol_LoadAddress(void)
 {
-	Endpoint_Read_Stream_BE(&CurrentAddress, sizeof(CurrentAddress));
+	Endpoint_Read_Stream_BE(&CurrentAddress, sizeof(CurrentAddress), NO_STREAM_CALLBACK);
 
 	Endpoint_ClearOUT();
 	Endpoint_SetEndpointDirection(ENDPOINT_DIR_IN);

@@ -1,21 +1,21 @@
 /*
              LUFA Library
-     Copyright (C) Dean Camera, 2009.
+     Copyright (C) Dean Camera, 2010.
               
   dean [at] fourwalledcubicle [dot] com
       www.fourwalledcubicle.com
 */
 
 /*
-  Copyright 2009  Dean Camera (dean [at] fourwalledcubicle [dot] com)
+  Copyright 2010  Dean Camera (dean [at] fourwalledcubicle [dot] com)
 
-  Permission to use, copy, modify, and distribute this software
-  and its documentation for any purpose and without fee is hereby
-  granted, provided that the above copyright notice appear in all
-  copies and that both that the copyright notice and this
-  permission notice and warranty disclaimer appear in supporting
-  documentation, and that the name of the author not be used in
-  advertising or publicity pertaining to distribution of the
+  Permission to use, copy, modify, distribute, and sell this 
+  software and its documentation for any purpose is hereby granted
+  without fee, provided that the above copyright notice appear in 
+  all copies and that both that the copyright notice and this
+  permission notice and warranty disclaimer appear in supporting 
+  documentation, and that the name of the author not be used in 
+  advertising or publicity pertaining to distribution of the 
   software without specific, written prior permission.
 
   The author disclaim all warranties with regard to this
@@ -48,22 +48,25 @@
 		
 		#include "V2Protocol.h"
 		#include "V2ProtocolConstants.h"
-		#include "ISPTarget.h"
+		#include "ISP/ISPTarget.h"
 
 	/* Macros: */
 		/** Parameter privilege mask to allow the host PC to read the parameter's value */
-		#define PARAM_PRIV_READ   (1 << 0)
+		#define PARAM_PRIV_READ     (1 << 0)
 
 		/** Parameter privilege mask to allow the host PC to change the parameter's value */
-		#define PARAM_PRIV_WRITE  (1 << 1)
+		#define PARAM_PRIV_WRITE    (1 << 1)
+		
+		/** Total number of parameters in the parameter table */
+		#define TABLE_PARAM_COUNT   (sizeof(ParameterTable) / sizeof(ParameterTable[0]))
 
 	/* Type Defines: */
 		/** Type define for a parameter table entry indicating a PC readable or writable device parameter. */
 		typedef struct
 		{
 			const uint8_t ParamID; /**< Parameter ID number to uniquely identify the parameter within the device */
+			const uint8_t ParamPrivileges;  /**< Parameter privileges to allow the host to read or write the parameter's value */
 			uint8_t ParamValue; /**< Current parameter's value within the device */
-			uint8_t ParamPrivileges;  /**< Parameter privileges to allow the host to read or write the parameter's value */
 		} ParameterItem_t;
 
 	/* Function Prototypes: */

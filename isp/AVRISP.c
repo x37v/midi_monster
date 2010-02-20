@@ -1,21 +1,21 @@
 /*
              LUFA Library
-     Copyright (C) Dean Camera, 2009.
+     Copyright (C) Dean Camera, 2010.
               
   dean [at] fourwalledcubicle [dot] com
       www.fourwalledcubicle.com
 */
 
 /*
-  Copyright 2009  Dean Camera (dean [at] fourwalledcubicle [dot] com)
+  Copyright 2010  Dean Camera (dean [at] fourwalledcubicle [dot] com)
 
-  Permission to use, copy, modify, and distribute this software
-  and its documentation for any purpose and without fee is hereby
-  granted, provided that the above copyright notice appear in all
-  copies and that both that the copyright notice and this
-  permission notice and warranty disclaimer appear in supporting
-  documentation, and that the name of the author not be used in
-  advertising or publicity pertaining to distribution of the
+  Permission to use, copy, modify, distribute, and sell this 
+  software and its documentation for any purpose is hereby granted
+  without fee, provided that the above copyright notice appear in 
+  all copies and that both that the copyright notice and this
+  permission notice and warranty disclaimer appear in supporting 
+  documentation, and that the name of the author not be used in 
+  advertising or publicity pertaining to distribution of the 
   software without specific, written prior permission.
 
   The author disclaim all warranties with regard to this
@@ -45,8 +45,6 @@ int main(void)
 {
 	SetupHardware();
 
-	V2Params_LoadNonVolatileParamValues();
-	
 	for (;;)
 	{
 		Process_AVRISP_Commands();
@@ -73,18 +71,7 @@ void SetupHardware(void)
 
 	/* Hardware Initialization */
 	USB_Init();
-
-	#if defined(ADC)
-	/* Initialize the ADC converter for VTARGET level detection on supported AVR models */
-	ADC_Init(ADC_FREE_RUNNING | ADC_PRESCALE_128);
-	ADC_SetupChannel(VTARGET_ADC_CHANNEL);
-	ADC_StartReading(VTARGET_ADC_CHANNEL | ADC_RIGHT_ADJUSTED | ADC_REFERENCE_AVCC);
-	#endif
-	
-	/* Millisecond timer initialization for timeouts and delays */
-	OCR0A  = ((F_CPU / 64) / 1000);
-	TCCR0A = (1 << WGM01);
-	TCCR0B = ((1 << CS01) | (1 << CS00));
+	V2Protocol_Init();
 }
 
 /** Event handler for the library USB Connection event. */

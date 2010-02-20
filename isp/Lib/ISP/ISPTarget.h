@@ -30,21 +30,20 @@
 
 /** \file
  *
- *  Header file for V2Protocol.c.
+ *  Header file for ISPTarget.c.
  */
 
-#ifndef _V2_PROTOCOL_
-#define _V2_PROTOCOL_
+#ifndef _ISP_TARGET_
+#define _ISP_TARGET_
 
 	/* Includes: */
+		#include <avr/io.h>
+		#include <util/delay.h>
+
 		#include <LUFA/Drivers/USB/USB.h>
 		#include <LUFA/Drivers/Peripheral/SPI.h>
 		
-		#include "../Descriptors.h"
-		#include "V2ProtocolConstants.h"
-		#include "V2ProtocolParams.h"
-		#include "ISP/ISPProtocol.h"
-		#include "XPROG/XPROGProtocol.h"
+		#include "../V2ProtocolParams.h"
 
 	/* Preprocessor Checks: */
 		#if ((BOARD == BOARD_XPLAIN) || (BOARD == BOARD_XPLAIN_REV1))
@@ -56,38 +55,18 @@
 		#endif
 
 	/* Macros: */
-		#if !defined(__DOXYGEN__)
-			#define _GETADCMUXMASK2(x, y)       x ## y
-			#define _GETADCMUXMASK(x, y)        _GETADCMUXMASK2(x, y)
-		#endif
-
-		/** Programmer ID string, returned to the host during the CMD_SIGN_ON command processing */
-		#define PROGRAMMER_ID              "AVRISP_MK2"
+		/** Total number of allowable ISP programming speeds supported by the device */
+		#define TOTAL_ISP_PROGRAMMING_SPEEDS  7
 		
-		/** Timeout period for each issued command from the host before it is aborted */
-		#define COMMAND_TIMEOUT_MS         200
+		#define LOAD_EXTENDED_ADDRESS_CMD     0x4D
 		
-		/** Command timeout counter register, GPIOR for speed */
-		#define TimeoutMSRemaining         GPIOR0
-		
-		/** MUX mask for the VTARGET ADC channel number */
-		#define VTARGET_ADC_CHANNEL_MASK   _GETADCMUXMASK(ADC_CHANNEL, VTARGET_ADC_CHANNEL)
-
-	/* External Variables: */
-		extern uint32_t CurrentAddress;
-		extern bool     MustSetAddress;
-
 	/* Function Prototypes: */
-		void V2Protocol_Init(void);
-		void V2Protocol_ProcessCommand(void);
-		
-		#if defined(INCLUDE_FROM_V2PROTOCOL_C)
-			static void V2Protocol_UnknownCommand(const uint8_t V2Command);
-			static void V2Protocol_SignOn(void);
-			static void V2Protocol_GetSetParam(const uint8_t V2Command);
-			static void V2Protocol_ResetProtection(void);
-			static void V2Protocol_LoadAddress(void);
-		#endif
+		uint8_t ISPTarget_GetSPIPrescalerMask(void);
+		void    ISPTarget_ChangeTargetResetLine(const bool ResetTarget);
+		uint8_t ISPTarget_WaitForProgComplete(const uint8_t ProgrammingMode, const uint16_t PollAddress,
+		                                      const uint8_t PollValue, const uint8_t DelayMS,
+		                                      const uint8_t ReadMemCommand);
+		uint8_t ISPTarget_WaitWhileTargetBusy(void);
+		void    ISPTarget_LoadExtendedAddress(void);
 
 #endif
-

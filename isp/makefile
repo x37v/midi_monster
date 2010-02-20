@@ -66,7 +66,8 @@ MCU = at90usb162
 #but stuff compiled for at90usb162 works on the 32u2
 DFU_MCU = atmega32u2
 
-# Target board (see library "Board Types" documentation, USER or blank for projects not requiring
+
+# Target board (see library "Board Types" documentation, NONE for projects not requiring
 # LUFA board drivers). If USER is selected, put custom board drivers in a directory called 
 # "Board" inside the application directory.
 #BOARD = USBKEY
@@ -116,14 +117,13 @@ OBJDIR = .
 
 
 # Path to the LUFA library
-LUFA_PATH = ../../lufa_091223/
+LUFA_PATH = ../../lufa_100219/
 
 
 # LUFA library compile-time options
 LUFA_OPTS  = -D USB_DEVICE_ONLY
 LUFA_OPTS += -D FIXED_CONTROL_ENDPOINT_SIZE=16
 LUFA_OPTS += -D FIXED_NUM_CONFIGURATIONS=1
-LUFA_OPTS += -D NO_STREAM_CALLBACKS
 LUFA_OPTS += -D USE_FLASH_DESCRIPTORS
 LUFA_OPTS += -D USE_STATIC_OPTIONS="(USB_DEVICE_OPT_FULLSPEED | USB_OPT_REG_ENABLED | USB_OPT_AUTO_PLL)"
 
@@ -133,11 +133,12 @@ SRC = $(TARGET).c                                                 \
 	  Descriptors.c                                               \
       Lib/V2Protocol.c                                            \
       Lib/V2ProtocolParams.c                                      \
-      Lib/ISPProtocol.c                                           \
-      Lib/ISPTarget.c                                             \
-	  Lib/PDIProtocol.c                                           \
-	  Lib/PDITarget.c                                             \
-	  Lib/NVMTarget.c                                             \
+      Lib/ISP/ISPProtocol.c                                       \
+      Lib/ISP/ISPTarget.c                                         \
+	  Lib/XPROG/XPROGProtocol.c                                   \
+	  Lib/XPROG/XPROGTarget.c                                     \
+	  Lib/XPROG/XMEGANVM.c                                        \
+	  Lib/XPROG/TINYNVM.c                                         \
 	  $(LUFA_PATH)/LUFA/Drivers/USB/LowLevel/DevChapter9.c        \
 	  $(LUFA_PATH)/LUFA/Drivers/USB/LowLevel/Endpoint.c           \
 	  $(LUFA_PATH)/LUFA/Drivers/USB/LowLevel/Host.c               \
@@ -194,15 +195,17 @@ CSTANDARD = -std=gnu99
 
 # Place -D or -U options here for C sources
 CDEFS  = -DF_CPU=$(F_CPU)UL -DF_CLOCK=$(F_CLOCK)UL -DBOARD=BOARD_$(BOARD) $(LUFA_OPTS)
-CDEFS += -DRESET_LINE_PORT=PORTB
-CDEFS += -DRESET_LINE_PIN=PINB
-CDEFS += -DRESET_LINE_DDR=DDRB
+CDEFS += -DAUX_LINE_PORT=PORTB
+CDEFS += -DAUX_LINE_PIN=PINB
+CDEFS += -DAUX_LINE_DDR=DDRB
 #midimonster's tiny45's reset is on pin b5
-CDEFS += -DRESET_LINE_MASK="(1 << 5)"
-#CDEFS += -DRESET_LINE_MASK="(1 << 4)"
+CDEFS += -DAUX_LINE_MASK="(1 << 5)"
+#CDEFS += -DAUX_LINE_MASK="(1 << 4)"
 CDEFS += -DVTARGET_ADC_CHANNEL=2
 CDEFS += -DENABLE_ISP_PROTOCOL
-CDEFS += -DENABLE_PDI_PROTOCOL
+CDEFS += -DENABLE_XPROG_PROTOCOL
+#CDEFS += -DXPROG_VIA_HARDWARE_USART
+#CDEFS += -DNO_VTARGET_DETECT
 
 
 # Place -D or -U options here for ASM sources

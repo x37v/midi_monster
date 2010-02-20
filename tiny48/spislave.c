@@ -50,6 +50,8 @@ int main(void)
 	while(1) {
 		SPDR = cnt;
 		while(!(SPSR & (1<<SPIF)));
+		uint8_t tmp = SPDR;
+		cnt++;
 	}
 
 }
@@ -61,15 +63,17 @@ void SetupHardware(void)
 	MCUSR &= ~(1 << WDRF);
 	wdt_disable();
 
-	//set up slave
-	
-	/* Set MISO output, all others input */
-	DDR_SPI = (1<<DD_MISO);
-	/* Enable SPI */
-	SPCR = (1<<SPE);
-
 	/* Disable clock division */
 	clock_prescale_set(clock_div_1);
 
+	//set up slave
+	PRR &= ~(_BV(PRSPI));
+	/* Set MISO output, all others input */
+	DDR_SPI = _BV(DD_MISO);
+	//no pullups
+	PORTB = 0;
+
+	/* Enable SPI */
+	SPCR = (1<<SPE);
 }
 

@@ -37,6 +37,7 @@
 
 #include "MIDI.h"
 #include "avr-midi/midi.h"
+#include <util/delay.h>
 
 #define LED_1 PORTC2
 #define LED_2 PORTC4
@@ -51,7 +52,10 @@
 
 #define MIDI_REALTIME 0xF0
 
+#define TINY_RESET PINB5
+
 #define DDR_SPI DDRB
+#define DD_SS PINB0
 #define DD_SCK PINB1
 #define DD_MOSI PINB2
 #define DD_MISO PINB3
@@ -84,10 +88,10 @@ int main(void)
 {
 	SetupHardware();
 
-
 	//THIS DOESNT WORK YET
+	
 	//select the tiny select
-	PORTB &= ~_BV(TINY_SS);
+	PORTB &= ~(_BV(TINY_SS));
 
 	while(1){
 
@@ -95,11 +99,16 @@ int main(void)
 		SPDR = 0;
 		/* Wait for reception complete */
 		while(!(SPSR & (1<<SPIF)));
-		uint8_t val =  SPDR;
+		uint8_t val = SPDR;
 
-		SendUSBMIDICC( &USB_MIDI_Interface, 0, val, 0, 0);
+		/*
+		SendUSBMIDICC( &USB_MIDI_Interface, 0, val & 0x7F, 0, 0);
 		MIDI_Device_USBTask(&USB_MIDI_Interface);
 		USB_USBTask();
+		*/
+
+		//indicate that we got a packet
+		PORTC ^= _BV(LED_2);
 	}
 
 	for (;;)
@@ -165,16 +174,21 @@ void SetupHardware(void)
 	//set up hardware midi
 	midiInit(MIDI_CLOCK_16MHZ_OSC, true, false);
 
+	/* Hardware Initialization */
+	USB_Init();
+
 	//spi
-	/* Set MOSI and SCK output and chip select, all others input */
-	DDR_SPI = (1<<DD_MOSI) | (1<<DD_SCK) | _BV(TINY_SS);
+	PRR0 &= ~(_BV(PRSPI));
+	/* Set SS, MOSI, SCK, TINY_SS, TINY_RESET to output, all others input */
+	DDR_SPI = _BV(DD_SCK) | _BV(DD_MOSI) | _BV(DD_SCK) | _BV(TINY_SS) | _BV(TINY_RESET) ;
+
+	//reset the tiny
+	PORTB &= ~(_BV(TINY_RESET));
+	_delay_ms(2);
+	PORTB |= _BV(TINY_RESET);
 
 	/* Enable SPI, Master, set clock rate fck/16 */
 	SPCR = (1<<SPE) | (1<<MSTR) | (1<<SPR0);
-
-
-	/* Hardware Initialization */
-	USB_Init();
 }
 
 /** Event handler for the library USB Connection event. */

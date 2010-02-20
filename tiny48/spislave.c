@@ -39,6 +39,8 @@
 #include <LUFA/Common/Common.h>
 //#include <LUFA/Drivers/Peripheral/SPI.h>
 
+#include <util/delay.h>
+
 #define DDR_SPI DDRB
 #define DD_MISO PINB4
 
@@ -48,10 +50,11 @@ int main(void)
 	uint8_t cnt = 0;
 
 	while(1) {
-		SPDR = cnt;
-		while(!(SPSR & (1<<SPIF)));
+		SPDR = cnt++;
+		while(!(SPSR & (1<<SPIF))){
+			;
+		}
 		uint8_t tmp = SPDR;
-		cnt++;
 	}
 
 }

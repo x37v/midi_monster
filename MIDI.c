@@ -92,20 +92,22 @@ int main(void)
 	
 	//select the tiny select
 	PORTB &= ~(_BV(TINY_SS));
+	_delay_ms(1);
 
 	while(1){
+		_delay_ms(50);
 
 		//send bogus data
-		SPDR = 0;
+		SPDR = 1;
 		/* Wait for reception complete */
-		while(!(SPSR & (1<<SPIF)));
+		while(!(SPSR & (1<<SPIF))){
+			;
+		}
 		uint8_t val = SPDR;
 
-		/*
-		SendUSBMIDICC( &USB_MIDI_Interface, 0, val & 0x7F, 0, 0);
+		SendUSBMIDICC( &USB_MIDI_Interface, 1, val & 0x7F, 1, 0);
 		MIDI_Device_USBTask(&USB_MIDI_Interface);
 		USB_USBTask();
-		*/
 
 		//indicate that we got a packet
 		PORTC ^= _BV(LED_2);
@@ -180,15 +182,15 @@ void SetupHardware(void)
 	//spi
 	PRR0 &= ~(_BV(PRSPI));
 	/* Set SS, MOSI, SCK, TINY_SS, TINY_RESET to output, all others input */
-	DDR_SPI = _BV(DD_SCK) | _BV(DD_MOSI) | _BV(DD_SCK) | _BV(TINY_SS) | _BV(TINY_RESET) ;
+	DDR_SPI = _BV(DD_SS) | _BV(DD_SCK) | _BV(DD_MOSI) | _BV(DD_SCK) | _BV(TINY_SS) | _BV(TINY_RESET) ;
 
 	//reset the tiny
 	PORTB &= ~(_BV(TINY_RESET));
 	_delay_ms(2);
 	PORTB |= _BV(TINY_RESET);
 
-	/* Enable SPI, Master, set clock rate fck/16 */
-	SPCR = (1<<SPE) | (1<<MSTR) | (1<<SPR0);
+	/* Enable SPI, Master, set clock rate fck/64 */
+	SPCR = (1<<SPE) | (1<<MSTR) | (1<<SPR1);
 }
 
 /** Event handler for the library USB Connection event. */

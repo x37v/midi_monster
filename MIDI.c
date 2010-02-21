@@ -41,6 +41,7 @@
 #include <util/delay.h>
 
 #define MIDIIN_QUEUE_SIZE 64
+#define NUM_DIGITAL_INS 4
 
 #define LED_1 PORTC2
 #define LED_2 PORTC4
@@ -107,12 +108,21 @@ typedef enum {
 int main(void)
 {
 	int8_t midi_bytes_left = -1;
+	uint8_t i;
+	uint8_t digital_in[NUM_DIGITAL_INS];
+	bool digital_last[NUM_DIGITAL_INS];
 	MIDI_EventPacket_t hardwareToUSBmidiPacket;
 	HWMidiMsgType midiInType = MIDI_MSG_INVALID;
 
 	//init the byte queue
 	byteQueueInit(&midiin_queue, _midiin_queue_data, MIDIIN_QUEUE_SIZE);
 	SetupHardware();
+
+	//init the digital inputs
+	for(i = 0; i < NUM_DIGITAL_INS; i++){
+		digital_in[i] = 0;
+		digital_last[i] = false;
+	}
 
 	sei();
 
@@ -159,6 +169,50 @@ int main(void)
 
 	for (;;)
 	{
+		//shift the guys up
+		for(i = 0; i < NUM_DIGITAL_INS; i++)
+			digital_in[i] = digital_in[i] << 1;
+
+		//read the inputs
+		if(PIND & _BV(PIND6))
+			digital_in[0] |= 0x1;
+		if(PINC & _BV(PINC7))
+			digital_in[1] |= 0x1;
+		if(PIND & _BV(PIND4))
+			digital_in[2] |= 0x1;
+		if(PIND & _BV(PIND5))
+			digital_in[3] |= 0x1;
+
+		//check the inputs
+		for(i = 0; i < NUM_DIGITAL_INS; i++){
+			if(digital_in[i] == 0) {
+				if(digital_last[i] == true){
+					MIDI_EventPacket_t digitalOutPacket;
+					digitalOutPacket.CableNumber = 0;
+					digitalOutPacket.Command = (MIDI_CC >> 4);
+					digitalOutPacket.Data1 = (MIDI_CC | 15);
+					digitalOutPacket.Data2 = i;
+					digitalOutPacket.Data3 = 127;
+					MIDI_Device_SendEventPacket(&USB_MIDI_Interface, &digitalOutPacket);
+					MIDI_Device_Flush(&USB_MIDI_Interface);
+				}
+				digital_last[i] = false;
+			} else if (digital_in[i] == 0xFF) {
+				if(digital_last[i] == false){
+					MIDI_EventPacket_t digitalOutPacket;
+					digitalOutPacket.CableNumber = 0;
+					digitalOutPacket.Command = (MIDI_CC >> 4);
+					digitalOutPacket.Data1 = (MIDI_CC | 15);
+					digitalOutPacket.Data2 = i;
+					digitalOutPacket.Data3 = 0;
+					MIDI_Device_SendEventPacket(&USB_MIDI_Interface, &digitalOutPacket);
+					MIDI_Device_Flush(&USB_MIDI_Interface);
+				}
+				digital_last[i] = true;
+			}
+		}
+
+		
 		MIDI_EventPacket_t ReceivedMIDIEvent;
 		if (MIDI_Device_ReceiveEventPacket(&USB_MIDI_Interface, &ReceivedMIDIEvent)) {
 
@@ -324,6 +378,17 @@ void SetupHardware(void)
 	/* Enable SPI, Master, set clock rate fck/64 */
 	//SPCR = (1<<SPE) | (1<<MSTR) | (1<<SPR1);
 	//SPCR = (1<<SPE);
+	
+
+	//set inputs with pullups
+
+	//TIN1
+	DDRC &= ~(_BV(PINC7));
+	PORTC |= _BV(PINC7);
+
+	//HD1-3
+	DDRD &= ~(_BV(PIND6) | _BV(PIND5) | _BV(PIND4));
+	PORTD |= (_BV(PIND6) | _BV(PIND5) | _BV(PIND4));
 }
 
 /** Event handler for the library USB Connection event. */

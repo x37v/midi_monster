@@ -83,8 +83,7 @@ USB_ClassInfo_MIDI_Device_t USB_MIDI_Interface =
 				.DataOUTEndpointDoubleBank = false,
 			},
 	};
-
-byteQueue_t midiin_queue;
+volatile byteQueue_t midiin_queue;
 uint8_t _midiin_queue_data[MIDIIN_QUEUE_SIZE];
 
 MIDI_IN_ISR {
@@ -206,7 +205,7 @@ int main(void)
 			for(index = 0; index < size; index++) {
 				uint8_t b = byteQueueGet(&midiin_queue, index);
 				//if it is a realtime message we send it immediately
-				if(b & MIDI_REALTIME) {
+				if(b & 0xF0 == MIDI_REALTIME) {
 					if(b == MIDI_TC_QUATERFRAME ||
 							b == MIDI_SONGPOSITION ||
 							b == MIDI_SONGSELECT) {
@@ -226,7 +225,7 @@ int main(void)
 					hardwareToUSBmidiPacket.Command = (b >> 4);
 					hardwareToUSBmidiPacket.CableNumber = 0;
 					//if it is a status byte
-					switch(b & MIDI_STATUSMASK){
+					switch(b & 0xF0){
 						case MIDI_CC:
 						case MIDI_NOTEON:
 						case MIDI_NOTEOFF:
@@ -245,10 +244,10 @@ int main(void)
 							midiInType = MIDI_MSG_INVALID;
 							midi_bytes_left = 0;
 							break;
-					};
+					}
 				} else if(midi_bytes_left > 0 && midiInType != MIDI_MSG_INVALID) {
 					switch(midiInType){
-						case MIDI_MSG_2_BYTES:
+						case MIDI_MSG_3_BYTES:
 							if(midi_bytes_left == 2) {
 								hardwareToUSBmidiPacket.Data2 = b;
 							} else if(midi_bytes_left == 1) {
@@ -262,7 +261,7 @@ int main(void)
 							}
 							midi_bytes_left--;
 							break;
-						case MIDI_MSG_3_BYTES:
+						case MIDI_MSG_2_BYTES:
 							if(midi_bytes_left == 1) {
 								//send
 								hardwareToUSBmidiPacket.Data2 = b;
@@ -279,7 +278,7 @@ int main(void)
 							midi_bytes_left = 0;
 							//ERROR
 							break;
-					};
+					}
 				} 
 			}
 			byteQueueRemove(&midiin_queue, size);

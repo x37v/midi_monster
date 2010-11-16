@@ -37,10 +37,8 @@
 
 #include "MIDI.h"
 #include "avr-midi/midi.h"
-#include "avr-bytequeue/bytequeue.h"
 #include <util/delay.h>
 
-#define MIDIIN_QUEUE_SIZE 64
 #define NUM_DIGITAL_INS 4
 
 #define LED_1 PORTC2
@@ -54,8 +52,6 @@
 #define SYS_COMMON_2 0x20
 #define SYS_COMMON_3 0x30
 
-#define MIDI_REALTIME 0xF0
-
 #define TINY_RESET PINB5
 
 #define DDR_SPI DDRB
@@ -64,6 +60,10 @@
 #define DD_MOSI PINB2
 #define DD_MISO PINB3
 #define TINY_SS PINB4
+
+//we have 2 midi devices, the usb one and the serial midi one
+MidiDevice midi_device_usb;
+MidiDevice midi_device_serial;
 
 /** LUFA MIDI Class driver interface configuration and state information. This structure is
  *  passed to all MIDI Class driver functions, so that multiple instances of the same class
@@ -84,38 +84,84 @@ USB_ClassInfo_MIDI_Device_t USB_MIDI_Interface =
 				.DataOUTEndpointDoubleBank = false,
 			},
 	};
-volatile byteQueue_t midiin_queue;
-uint8_t _midiin_queue_data[MIDIIN_QUEUE_SIZE];
+
+#include <avr/interrupt.h>
+
+#define MIDI_IN_ISR ISR(USART1_RX_vect)
+#define MIDI_IN_GET_BYTE UDR1
+#define MIDI_CLOCK_16MHZ_OSC 31
 
 MIDI_IN_ISR {
 	uint8_t b = MIDI_IN_GET_BYTE;
-	//just throw it on the queue
-	//TODO: test for fail?
-	byteQueueEnqueue(&midiin_queue, b);
+
+   midi_device_input(&midi_device_serial, 1, b, 0, 0);
+
 	if(b & MIDI_STATUSMASK)
 		PORTC ^= _BV(LED_1);
 }
 
-typedef enum {
-	MIDI_MSG_2_BYTES,
-	MIDI_MSG_3_BYTES,
-	MIDI_MSG_INVALID
-} HWMidiMsgType;
+
+void midi_send_usb(MidiDevice * device, uint8_t count, uint8_t byte0, uint8_t byte1, uint8_t byte2) {
+   //we ignore count because usb midi always sends 4 bytes
+   MIDI_EventPacket_t packet;
+   packet.CableNumber = 0;
+   packet.Command = (byte0 >> 4);
+   packet.Data1 = byte0;
+   packet.Data2 = byte1;
+   packet.Data3 = byte2;
+   MIDI_Device_SendEventPacket(&USB_MIDI_Interface, &packet);
+   MIDI_Device_Flush(&USB_MIDI_Interface);
+}
+
+void midi_init_device_serial(MidiDevice * device) {
+   midi_init_device(device);
+
+   uint16_t clockScale = MIDI_CLOCK_16MHZ_OSC;
+   UBRR1H = (uint8_t)(clockScale >> 8);
+   UBRR1L = (uint8_t)(clockScale & 0xFF);
+
+   // Enable transmitter
+   UCSR1B |= _BV(TXEN1);
+   //Enable receiver
+   //RX Complete Interrupt Enable 
+   UCSR1B |= _BV(RXEN1) | _BV(RXCIE1);
+
+   //Set frame format: Async, 8data, 1 stop bit, 1 start bit, no parity
+   UCSR1C = _BV(UCSZ11) | _BV(UCSZ10);
+}
+
+void midi_send_serial(MidiDevice * device, uint8_t count, uint8_t byte0, uint8_t byte1, uint8_t byte2) {
+   uint8_t out[3];
+   out[0] = byte0;
+   out[1] = byte1;
+   out[2] = byte2;
+   if (count > 3)
+      count = 3;
+
+   uint8_t i;
+   for(i = 0; i < count; i++) {
+      while ( !( UCSR1A & _BV(UDRE1)) );
+      UDR1 = out[i];
+   }
+}
+
+void midi_merge_usb_to_serial(MidiDevice * device, uint8_t count, uint8_t byte0, uint8_t byte1, uint8_t byte2) {
+   midi_send_data(&midi_device_serial, count, byte0, byte1, byte2);
+}
+
+void midi_merge_serial_to_usb(MidiDevice * device, uint8_t count, uint8_t byte0, uint8_t byte1, uint8_t byte2) {
+   midi_send_data(&midi_device_usb, count, byte0, byte1, byte2);
+}
 
 /** Main program entry point. This routine contains the overall program flow, including initial
  *  setup of all components and the main program loop.
  */
 int main(void)
 {
-	int8_t midi_bytes_left = -1;
 	uint8_t i;
 	uint8_t digital_in[NUM_DIGITAL_INS];
 	bool digital_last[NUM_DIGITAL_INS];
-	MIDI_EventPacket_t hardwareToUSBmidiPacket;
-	HWMidiMsgType midiInType = MIDI_MSG_INVALID;
 
-	//init the byte queue
-	byteQueueInit(&midiin_queue, _midiin_queue_data, MIDIIN_QUEUE_SIZE);
 	SetupHardware();
 
 	//init the digital inputs
@@ -187,157 +233,38 @@ int main(void)
 		for(i = 0; i < NUM_DIGITAL_INS; i++){
 			if(digital_in[i] == 0) {
 				if(digital_last[i] == true){
-					MIDI_EventPacket_t digitalOutPacket;
-					digitalOutPacket.CableNumber = 0;
-					digitalOutPacket.Command = (MIDI_CC >> 4);
-					digitalOutPacket.Data1 = (MIDI_CC | 15);
-					digitalOutPacket.Data2 = i;
-					digitalOutPacket.Data3 = 127;
-					MIDI_Device_SendEventPacket(&USB_MIDI_Interface, &digitalOutPacket);
-					MIDI_Device_Flush(&USB_MIDI_Interface);
+               //send on to both midi devices
+               midi_send_cc(&midi_device_usb, 15, i, 127);
+               midi_send_cc(&midi_device_serial, 15, i, 127);
 				}
 				digital_last[i] = false;
 			} else if (digital_in[i] == 0xFF) {
 				if(digital_last[i] == false){
-					MIDI_EventPacket_t digitalOutPacket;
-					digitalOutPacket.CableNumber = 0;
-					digitalOutPacket.Command = (MIDI_CC >> 4);
-					digitalOutPacket.Data1 = (MIDI_CC | 15);
-					digitalOutPacket.Data2 = i;
-					digitalOutPacket.Data3 = 0;
-					MIDI_Device_SendEventPacket(&USB_MIDI_Interface, &digitalOutPacket);
-					MIDI_Device_Flush(&USB_MIDI_Interface);
+               //send off to both midi devices
+               midi_send_cc(&midi_device_usb, 15, i, 0);
+               midi_send_cc(&midi_device_serial, 15, i, 0);
 				}
 				digital_last[i] = true;
 			}
 		}
 
-		
 		MIDI_EventPacket_t ReceivedMIDIEvent;
 		if (MIDI_Device_ReceiveEventPacket(&USB_MIDI_Interface, &ReceivedMIDIEvent)) {
-
-			//parse incoming data and echo to the hardware midi [for now]
-			switch(ReceivedMIDIEvent.Command << 4){
-				//length 3 messages
-				case MIDI_CC:
-				case MIDI_NOTEON:
-				case MIDI_NOTEOFF:
-				case MIDI_PITCHBEND:
-				case MIDI_AFTERTOUCH:
-				case SYSEX_STARTS_CONTS:
-				case SYSEX_ENDS_IN_3:
-				case SYS_COMMON_3:
-					midiSendByte(ReceivedMIDIEvent.Data1);
-					midiSendByte(ReceivedMIDIEvent.Data2);
-					midiSendByte(ReceivedMIDIEvent.Data3);
-					break;
-					//length 2 messages
-				case MIDI_CHANPRESSURE:
-				case MIDI_PROGCHANGE:
-				case SYSEX_ENDS_IN_2:
-				case SYS_COMMON_2:
-					midiSendByte(ReceivedMIDIEvent.Data1);
-					midiSendByte(ReceivedMIDIEvent.Data2);
-					break;
-					//length 1 messages
-				case MIDI_REALTIME:
-				case SYS_COMMON_1:
-					midiSendByte(ReceivedMIDIEvent.Data1);
-					break;
-				default:
-					break;
-			}
-
+         //to process the usb midi input we first get its packet length and
+         //then pass the bytes through our device
+         midi_packet_length_t packet_len = midi_packet_length(ReceivedMIDIEvent.Command << 4);
+         //TODO SYSEX
+         if (packet_len != UNDEFINED)
+            midi_device_input(&midi_device_usb, packet_len, 
+                  ReceivedMIDIEvent.Data1, ReceivedMIDIEvent.Data2, ReceivedMIDIEvent.Data3);
 			//indicate that we got a packet
 			PORTC ^= _BV(LED_2);
 		}
 
-		//check for hardware midi input
-		byteQueueIndex_t size = byteQueueLength(&midiin_queue);
-		if(size > 0){
-			uint8_t index;
-			for(index = 0; index < size; index++) {
-				uint8_t b = byteQueueGet(&midiin_queue, index);
-				//if it is a realtime message we send it immediately
-				if(b & 0xF0 == MIDI_REALTIME) {
-					if(b == MIDI_TC_QUATERFRAME ||
-							b == MIDI_SONGPOSITION ||
-							b == MIDI_SONGSELECT) {
-						//NOT IMPLEMENTED
-					} else {
-						MIDI_EventPacket_t realtimePacket;
-						realtimePacket.CableNumber = 0;
-						realtimePacket.Command = (MIDI_REALTIME >> 4);
-						realtimePacket.Data1 = b;
-						realtimePacket.Data2 = 0;
-						realtimePacket.Data3 = 0;
-						MIDI_Device_SendEventPacket(&USB_MIDI_Interface, &realtimePacket);
-						MIDI_Device_Flush(&USB_MIDI_Interface);
-					}
-				} else if(b & MIDI_STATUSMASK){
-					hardwareToUSBmidiPacket.Data1 = b;
-					hardwareToUSBmidiPacket.Command = (b >> 4);
-					hardwareToUSBmidiPacket.CableNumber = 0;
-					//if it is a status byte
-					switch(b & 0xF0){
-						case MIDI_CC:
-						case MIDI_NOTEON:
-						case MIDI_NOTEOFF:
-						case MIDI_AFTERTOUCH:
-						case MIDI_PITCHBEND:
-							midi_bytes_left = 2;
-							midiInType = MIDI_MSG_3_BYTES;
-							break;
-						case MIDI_PROGCHANGE:
-						case MIDI_CHANPRESSURE:
-							midi_bytes_left = 1;
-							midiInType = MIDI_MSG_2_BYTES;
-							break;
-						default:
-							//SYSEX NOT IMPLEMENTED
-							midiInType = MIDI_MSG_INVALID;
-							midi_bytes_left = 0;
-							break;
-					}
-				} else if(midi_bytes_left > 0 && midiInType != MIDI_MSG_INVALID) {
-					switch(midiInType){
-						case MIDI_MSG_3_BYTES:
-							if(midi_bytes_left == 2) {
-								hardwareToUSBmidiPacket.Data2 = b;
-							} else if(midi_bytes_left == 1) {
-								//send
-								hardwareToUSBmidiPacket.Data3 = b;
-								MIDI_Device_SendEventPacket(&USB_MIDI_Interface, &hardwareToUSBmidiPacket);
-								MIDI_Device_Flush(&USB_MIDI_Interface);
-							} else {
-								//error
-								midiInType = MIDI_MSG_INVALID;
-							}
-							midi_bytes_left--;
-							break;
-						case MIDI_MSG_2_BYTES:
-							if(midi_bytes_left == 1) {
-								//send
-								hardwareToUSBmidiPacket.Data2 = b;
-								hardwareToUSBmidiPacket.Data3 = 0;
-								MIDI_Device_SendEventPacket(&USB_MIDI_Interface, &hardwareToUSBmidiPacket);
-								MIDI_Device_Flush(&USB_MIDI_Interface);
-							} else {
-								//error
-								midiInType = MIDI_MSG_INVALID;
-							}
-							midi_bytes_left--;
-							break;
-						default:
-							midi_bytes_left = 0;
-							//ERROR
-							break;
-					}
-				} 
-			}
-			byteQueueRemove(&midiin_queue, size);
-		}
-	
+      //run the processing functions
+      midi_process(&midi_device_usb);
+      midi_process(&midi_device_serial);
+
 		MIDI_Device_USBTask(&USB_MIDI_Interface);
 		USB_USBTask();
 	}
@@ -346,6 +273,7 @@ int main(void)
 /** Configures the board hardware and chip peripherals for the demo's functionality. */
 void SetupHardware(void)
 {
+
 	//set up LEDs
 	DDRC |= (_BV(PINC2) | _BV(PINC4));
 	PORTC |= (_BV(PINC2) | _BV(PINC4));
@@ -357,11 +285,20 @@ void SetupHardware(void)
 	/* Disable clock division */
 	clock_prescale_set(clock_div_1);
 
-	//set up hardware midi
-	midiInit(MIDI_CLOCK_16MHZ_OSC, true, true);
-
 	/* Hardware Initialization */
 	USB_Init();
+
+   //initialize our midi devices
+   midi_init_device(&midi_device_usb);
+   midi_init_device_serial(&midi_device_serial);
+
+   //set our output funcs
+   midi_device_set_send_func(&midi_device_usb, midi_send_usb);
+   midi_device_set_send_func(&midi_device_serial, midi_send_serial);
+
+   //set our catchall callbacks for echoing
+   midi_register_catchall_callback(&midi_device_usb, midi_merge_usb_to_serial);
+   midi_register_catchall_callback(&midi_device_serial, midi_merge_serial_to_usb);
 
 	//spi
 	//PRR0 &= ~(_BV(PRSPI));
@@ -416,46 +353,3 @@ void EVENT_USB_Device_UnhandledControlRequest(void)
 	MIDI_Device_ProcessControlRequest(&USB_MIDI_Interface);
 }
 
-uint8_t SendUSBMIDINote(
-		USB_ClassInfo_MIDI_Device_t * midi_device,
-		const uint8_t pitch, 
-		const bool on, 
-		const uint8_t channel, 
-		const uint8_t velocity, 
-		const uint8_t cable_id)
-{
-	MIDI_EventPacket_t packet;
-
-	uint8_t command = MIDI_COMMAND_NOTE_OFF;
-	if(on)
-		command = MIDI_COMMAND_NOTE_ON;
-
-	packet.Command = (command >> 4);
-	packet.CableNumber = cable_id;
-
-	/* Write the Note On/Off command with the specified channel, pitch and velocity */
-	packet.Data1 = command | channel;
-	packet.Data2 = pitch;
-	packet.Data3 = velocity;
-
-	return MIDI_Device_SendEventPacket(midi_device, &packet);
-}
-
-uint8_t SendUSBMIDICC(
-		USB_ClassInfo_MIDI_Device_t * midi_device,
-		const uint8_t num, 
-		const uint8_t val, 
-		const uint8_t channel,
-		const uint8_t cable_id) {
-	MIDI_EventPacket_t packet;
-
-	uint8_t command = MIDI_COMMAND_CC;
-
-	packet.Command = (command >> 4);
-	packet.CableNumber = cable_id;
-	packet.Data1 = command | channel;
-	packet.Data2 = num;
-	packet.Data3 = val;
-
-	return MIDI_Device_SendEventPacket(midi_device, &packet);
-}

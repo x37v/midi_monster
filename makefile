@@ -62,7 +62,7 @@
 
 # MCU name
 #MCU = at90usb1287
-MCU = at90usb162
+MCU = atmega32u2
 #dfu supports the mega32u2 but avr-gcc doesn't yet
 #but stuff compiled for at90usb162 works on the 32u2
 DFU_MCU = atmega32u2
@@ -131,8 +131,9 @@ LUFA_OPTS += -D USE_STATIC_OPTIONS="(USB_DEVICE_OPT_FULLSPEED | USB_OPT_REG_ENAB
 
 # List C source files here. (C dependencies are automatically generated.)
 SRC = $(TARGET).c                                                 \
-		avr-bytequeue/bytequeue.c \
+		avr-midi/bytequeue/bytequeue.c \
 		avr-midi/midi.c \
+		avr-midi/midi_device.c \
 	  Descriptors.c                                               \
 	  $(LUFA_PATH)/LUFA/Drivers/USB/LowLevel/DevChapter9.c        \
 	  $(LUFA_PATH)/LUFA/Drivers/USB/LowLevel/Endpoint.c           \

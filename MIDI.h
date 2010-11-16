@@ -57,30 +57,6 @@
 		void EVENT_USB_Device_ConfigurationChanged(void);
 		void EVENT_USB_Device_UnhandledControlRequest(void);
 
-		uint8_t SendUSBMIDINote(
-				USB_ClassInfo_MIDI_Device_t * midi_device,
-				const uint8_t pitch, 
-				const bool on, 
-				const uint8_t channel, 
-				const uint8_t velocity, 
-				const uint8_t cable_id);
-
-		uint8_t SendUSBMIDICC(
-				USB_ClassInfo_MIDI_Device_t * midi_device,
-				const uint8_t num, 
-				const uint8_t val, 
-				const uint8_t channel,
-				const uint8_t cable_id);
-
-		/* Macros: */
-		/** MIDI command for a note on (activation) event */
-		#define MIDI_COMMAND_NOTE_ON         0x90
-		
-		/** MIDI command for a note off (deactivation) event */
-		#define MIDI_COMMAND_NOTE_OFF        0x80
-		
-		#define MIDI_COMMAND_CC         0xB0
-		
 		/** Standard key press velocity value used for all note events, as no pressure sensor is mounted */
 		#define MIDI_STANDARD_VELOCITY       64
 		

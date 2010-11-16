@@ -190,7 +190,7 @@ void midi_send_byte(MidiDevice * device, uint8_t b){
 
 void midi_send_data(MidiDevice * device, uint8_t count, uint8_t byte0, uint8_t byte1, uint8_t byte2){
    if (count > 3)
-      count = 0;
+      count = 3;
    device->send_func(device, count, byte0, byte1, byte2);
 }
 
